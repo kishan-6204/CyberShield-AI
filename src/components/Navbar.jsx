@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 const navLinks = [
   { label: 'Home', path: '/' },
   { label: 'Dashboard', path: '/dashboard' },
+  { label: 'Password Checker', path: '/password-checker' },
   { label: 'Login', path: '/login' },
   { label: 'Register', path: '/register' },
 ];

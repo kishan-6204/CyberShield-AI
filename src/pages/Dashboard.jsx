@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 const stats = [
   ['Total URL Scans', '1,248', '+12% this week'],
   ['Email Analyses', '327', '+18% this week'],
@@ -5,7 +7,14 @@ const stats = [
   ['Quiz Attempts', '42', 'Training active'],
 ];
 
-const sidebarItems = ['Dashboard', 'URL Scanner', 'Email Analyzer', 'Password Checker', 'Quiz', 'Settings'];
+const sidebarItems = [
+  { label: 'Dashboard', path: '/dashboard', active: true },
+  { label: 'URL Scanner' },
+  { label: 'Email Analyzer' },
+  { label: 'Password Checker', path: '/password-checker' },
+  { label: 'Quiz' },
+  { label: 'Settings' },
+];
 
 const activities = [
   { item: 'Suspicious login email reviewed', type: 'Email Analysis', status: 'Medium Risk', time: 'Today, 09:42' },
@@ -21,17 +30,21 @@ function Dashboard() {
         <aside className="glass-card rounded-2xl p-4 lg:min-h-[720px]">
           <p className="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Workspace</p>
           <nav className="mt-4 space-y-1">
-            {sidebarItems.map((item, index) => (
-              <button
-                key={item}
-                type="button"
-                className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
-                  index === 0 ? 'bg-cyan-400/10 text-cyan-200' : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                {item}
-              </button>
-            ))}
+            {sidebarItems.map((item) => {
+              const classes = `block w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
+                item.active ? 'bg-cyan-400/10 text-cyan-200' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+              }`;
+
+              return item.path ? (
+                <Link key={item.label} to={item.path} className={classes}>
+                  {item.label}
+                </Link>
+              ) : (
+                <button key={item.label} type="button" className={classes}>
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
         </aside>
 
