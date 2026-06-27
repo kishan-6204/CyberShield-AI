@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -50,7 +51,7 @@ function mapScanDocument(snapshot) {
   return {
     id: snapshot.id,
     ...data,
-    createdAt: convertTimestamp(data.createdAt),
+    createdAt: convertTimestamp(data.createdAt || data.timestamp),
   };
 }
 
@@ -95,14 +96,38 @@ export async function saveScanHistory(userId, scan) {
   }
 
   const isPasswordScan = type === 'password';
-
-  return addDoc(collection(db, COLLECTIONS.scanHistory), {
+  const now = serverTimestamp();
+  const documentData = {
     userId,
     type,
     input: isPasswordScan ? getMaskedPasswordInput(rawInput) : rawInput,
-    riskScore: Number.isFinite(scan?.riskScore) ? scan.riskScore : 0,
     threatLevel: normalizeString(scan?.threatLevel) || 'Safe',
-    createdAt: serverTimestamp(),
+    createdAt: now,
+    timestamp: now,
+  };
+
+  if (Number.isFinite(scan?.riskScore)) {
+    documentData.riskScore = scan.riskScore;
+  }
+
+  if (Number.isFinite(scan?.confidence)) {
+    documentData.confidence = scan.confidence;
+  }
+
+  if (Array.isArray(scan?.indicators)) {
+    documentData.indicators = scan.indicators;
+  }
+
+  if (Array.isArray(scan?.recommendations)) {
+    documentData.recommendations = scan.recommendations;
+  }
+
+  if (typeof scan?.summary === 'string' && scan.summary.trim()) {
+    documentData.summary = scan.summary.trim();
+  }
+
+  return addDoc(collection(db, COLLECTIONS.scanHistory), {
+    ...documentData,
   });
 }
 
@@ -125,15 +150,84 @@ export async function getDashboardData(userId) {
 
   const totalUrlScans = history.filter((item) => item.type === 'url').length;
   const totalPasswordChecks = history.filter((item) => item.type === 'password').length;
+  const totalEmailAnalyses = history.filter((item) => item.type === 'email').length;
   const averageRisk = history.length
-    ? Math.round(history.reduce((sum, item) => sum + (Number(item.riskScore) || 0), 0) / history.length)
+    ? Math.round(
+        history.reduce((sum, item) => {
+          if (Number.isFinite(item.riskScore)) {
+            return sum + item.riskScore;
+          }
+
+          if (Number.isFinite(item.confidence)) {
+            return sum + (100 - item.confidence);
+          }
+
+          return sum + 50;
+        }, 0) / history.length,
+      )
     : 0;
   const securityScore = Math.max(0, Math.min(100, 100 - averageRisk));
 
   return {
     totalUrlScans,
     totalPasswordChecks,
+    totalEmailAnalyses,
     securityScore,
     recentActivity: history.slice(0, 5),
   };
+}
+
+export function subscribeToDashboardData(userId, onChange, onError) {
+  if (!userId) {
+    throw new Error('A user id is required to load dashboard data.');
+  }
+
+  const historyQuery = query(
+    collection(db, COLLECTIONS.scanHistory),
+    where('userId', '==', userId),
+  );
+
+  return onSnapshot(
+    historyQuery,
+    (snapshot) => {
+      const history = snapshot.docs.map(mapScanDocument).sort((left, right) => {
+        const leftTime = left.createdAt?.getTime?.() || 0;
+        const rightTime = right.createdAt?.getTime?.() || 0;
+        return rightTime - leftTime;
+      });
+
+      const totalUrlScans = history.filter((item) => item.type === 'url').length;
+      const totalPasswordChecks = history.filter((item) => item.type === 'password').length;
+      const totalEmailAnalyses = history.filter((item) => item.type === 'email').length;
+      const averageRisk = history.length
+        ? Math.round(
+            history.reduce((sum, item) => {
+              if (Number.isFinite(item.riskScore)) {
+                return sum + item.riskScore;
+              }
+
+              if (Number.isFinite(item.confidence)) {
+                return sum + (100 - item.confidence);
+              }
+
+              return sum + 50;
+            }, 0) / history.length,
+          )
+        : 0;
+      const securityScore = Math.max(0, Math.min(100, 100 - averageRisk));
+
+      onChange({
+        totalUrlScans,
+        totalPasswordChecks,
+        totalEmailAnalyses,
+        securityScore,
+        recentActivity: history.slice(0, 5),
+      });
+    },
+    (error) => {
+      if (typeof onError === 'function') {
+        onError(error);
+      }
+    },
+  );
 }

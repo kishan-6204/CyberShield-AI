@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardCard from '../components/dashboard/DashboardCard.jsx';
 import useAuth from '../hooks/useAuth.js';
-import { getDashboardData } from '../services/firestoreService.js';
+import { subscribeToDashboardData } from '../services/firestoreService.js';
 
 const sidebarItems = [
   { label: 'Dashboard', path: '/dashboard', active: true },
+  { label: 'Email Analyzer', path: '/email-analyzer' },
   { label: 'URL Scanner', path: '/url-scanner' },
   { label: 'Password Checker', path: '/password-checker' },
   { label: 'Settings' },
@@ -29,6 +30,13 @@ function getStatusClass(riskScore) {
   return 'bg-emerald-300/10 text-emerald-200';
 }
 
+function getActivityTypeLabel(activityType) {
+  if (activityType === 'url') return 'URL Scan';
+  if (activityType === 'password') return 'Password Check';
+  if (activityType === 'email') return 'Email Analysis';
+  return 'Analysis';
+}
+
 function Dashboard() {
   const { currentUser, currentUserName } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
@@ -36,41 +44,25 @@ function Dashboard() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    let isMounted = true;
+    if (!currentUser?.uid) {
+      setLoading(false);
+      return undefined;
+    }
 
-    const loadDashboard = async () => {
-      if (!currentUser?.uid) {
-        if (isMounted) {
-          setLoading(false);
-        }
-        return;
-      }
+    setLoading(true);
+    setError('');
 
-      setLoading(true);
-      setError('');
-
-      try {
-        const data = await getDashboardData(currentUser.uid);
-
-        if (isMounted) {
-          setDashboardData(data);
-        }
-      } catch (loadError) {
-        if (isMounted) {
-          setError(loadError?.message || 'Failed to load dashboard data.');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadDashboard();
-
-    return () => {
-      isMounted = false;
-    };
+    return subscribeToDashboardData(
+      currentUser.uid,
+      (data) => {
+        setDashboardData(data);
+        setLoading(false);
+      },
+      (loadError) => {
+        setError(loadError?.message || 'Failed to load dashboard data.');
+        setLoading(false);
+      },
+    );
   }, [currentUser?.uid]);
 
   return (
@@ -116,6 +108,7 @@ function Dashboard() {
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <DashboardCard label="Total URL Scans" value={loading ? '—' : dashboardData?.totalUrlScans ?? 0} note="Stored in scan history" />
             <DashboardCard label="Total Password Checks" value={loading ? '—' : dashboardData?.totalPasswordChecks ?? 0} note="Stored in scan history" tone="emerald" />
+            <DashboardCard label="Email Analyses" value={loading ? '—' : dashboardData?.totalEmailAnalyses ?? 0} note="Gemini + heuristics" tone="slate" />
             <DashboardCard label="Security Score" value={loading ? '—' : `${dashboardData?.securityScore ?? 0}/100`} note="Based on recent scan risk" tone="amber" />
             <DashboardCard label="Recent Activity" value={loading ? '—' : dashboardData?.recentActivity?.length ?? 0} note="Latest completed scans" tone="slate" />
           </div>
@@ -142,7 +135,7 @@ function Dashboard() {
                     {(dashboardData?.recentActivity || []).map((activity) => (
                       <tr key={activity.id} className="text-slate-300">
                         <td className="px-6 py-4 font-medium text-white">{activity.input}</td>
-                        <td className="px-6 py-4">{activity.type === 'url' ? 'URL Scan' : 'Password Check'}</td>
+                        <td className="px-6 py-4">{getActivityTypeLabel(activity.type)}</td>
                         <td className="px-6 py-4">
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(activity.riskScore)}`}>
                             {activity.threatLevel}
