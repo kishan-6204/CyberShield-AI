@@ -7,6 +7,7 @@ import Login from '../pages/Login.jsx';
 import NotFound from '../pages/NotFound.jsx';
 import PasswordChecker from '../pages/PasswordChecker.jsx';
 import Register from '../pages/Register.jsx';
+import UrlScanner from '../pages/UrlScanner.jsx';
 
 function AppRoutes() {
   return (
@@ -15,12 +16,27 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/password-checker" element={<PasswordChecker />} />
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/password-checker"
+          element={
+            <ProtectedRoute>
+              <PasswordChecker />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/url-scanner"
+          element={
+            <ProtectedRoute>
+              <UrlScanner />
             </ProtectedRoute>
           }
         />

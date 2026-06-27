@@ -1,29 +1,78 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
-const stats = [
-  ['Total URL Scans', '1,248', '+12% this week'],
-  ['Email Analyses', '327', '+18% this week'],
-  ['Security Score', '86/100', 'Strong posture'],
-  ['Quiz Attempts', '42', 'Training active'],
-];
+import DashboardCard from '../components/dashboard/DashboardCard.jsx';
+import useAuth from '../hooks/useAuth.js';
+import { getDashboardData } from '../services/firestoreService.js';
 
 const sidebarItems = [
   { label: 'Dashboard', path: '/dashboard', active: true },
-  { label: 'URL Scanner' },
-  { label: 'Email Analyzer' },
+  { label: 'URL Scanner', path: '/url-scanner' },
   { label: 'Password Checker', path: '/password-checker' },
-  { label: 'Quiz' },
   { label: 'Settings' },
 ];
 
-const activities = [
-  { item: 'Suspicious login email reviewed', type: 'Email Analysis', status: 'Medium Risk', time: 'Today, 09:42' },
-  { item: 'pay-secure-update.net scanned', type: 'URL Scan', status: 'High Risk', time: 'Yesterday, 16:18' },
-  { item: 'Password policy exercise completed', type: 'Quiz', status: 'Passed', time: 'Yesterday, 11:05' },
-  { item: 'Credential strength guidance viewed', type: 'Password Check', status: 'Improved', time: 'Mon, 14:30' },
-];
+function formatDateTime(value) {
+  if (!value) {
+    return 'Just now';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(value);
+}
+
+function getStatusClass(riskScore) {
+  if (riskScore >= 76) return 'bg-rose-300/10 text-rose-200';
+  if (riskScore >= 51) return 'bg-amber-300/10 text-amber-200';
+  if (riskScore >= 26) return 'bg-cyan-300/10 text-cyan-200';
+  return 'bg-emerald-300/10 text-emerald-200';
+}
 
 function Dashboard() {
+  const { currentUser, currentUserName } = useAuth();
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboard = async () => {
+      if (!currentUser?.uid) {
+        if (isMounted) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getDashboardData(currentUser.uid);
+
+        if (isMounted) {
+          setDashboardData(data);
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          setError(loadError?.message || 'Failed to load dashboard data.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.uid]);
+
   return (
     <section className="container-shell py-8">
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -52,51 +101,67 @@ function Dashboard() {
           <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/40 p-6 sm:flex-row sm:items-center">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200">Security command center</p>
-              <h1 className="mt-2 text-3xl font-bold text-white">Dashboard</h1>
-              <p className="mt-2 text-slate-400">Monitor mock security activity and prepare for upcoming analysis tools.</p>
+              <h1 className="mt-2 text-3xl font-bold text-white">Welcome back, {currentUserName}</h1>
+              <p className="mt-2 text-slate-400">
+                {currentUser?.email ? `Signed in as ${currentUser.email}.` : 'Monitor your security workspace and activity.'}
+              </p>
             </div>
             <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-200">
-              System Ready
+              {loading ? 'Syncing Data' : 'System Ready'}
             </span>
           </div>
 
+          {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-5 py-4 text-sm text-rose-100">{error}</div> : null}
+
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map(([label, value, note]) => (
-              <article key={label} className="glass-card rounded-2xl p-6">
-                <p className="text-sm text-slate-400">{label}</p>
-                <p className="mt-3 text-3xl font-bold text-white">{value}</p>
-                <p className="mt-2 text-sm text-cyan-200">{note}</p>
-              </article>
-            ))}
+            <DashboardCard label="Total URL Scans" value={loading ? '—' : dashboardData?.totalUrlScans ?? 0} note="Stored in scan history" />
+            <DashboardCard label="Total Password Checks" value={loading ? '—' : dashboardData?.totalPasswordChecks ?? 0} note="Stored in scan history" tone="emerald" />
+            <DashboardCard label="Security Score" value={loading ? '—' : `${dashboardData?.securityScore ?? 0}/100`} note="Based on recent scan risk" tone="amber" />
+            <DashboardCard label="Recent Activity" value={loading ? '—' : dashboardData?.recentActivity?.length ?? 0} note="Latest completed scans" tone="slate" />
           </div>
 
           <div className="glass-card overflow-hidden rounded-2xl">
             <div className="border-b border-white/10 p-6">
               <h2 className="text-xl font-bold text-white">Recent Activity</h2>
-              <p className="mt-1 text-sm text-slate-400">Mock events for the Day 1 static dashboard interface.</p>
+              <p className="mt-1 text-sm text-slate-400">Latest URL and password scans saved in Firestore.</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-                <thead className="bg-white/[0.03] text-slate-400">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Activity</th>
-                    <th className="px-6 py-4 font-semibold">Type</th>
-                    <th className="px-6 py-4 font-semibold">Status</th>
-                    <th className="px-6 py-4 font-semibold">Time</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {activities.map((activity) => (
-                    <tr key={activity.item} className="text-slate-300">
-                      <td className="px-6 py-4 font-medium text-white">{activity.item}</td>
-                      <td className="px-6 py-4">{activity.type}</td>
-                      <td className="px-6 py-4"><span className="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-200">{activity.status}</span></td>
-                      <td className="px-6 py-4">{activity.time}</td>
+            {loading ? (
+              <div className="p-6 text-sm text-slate-400">Loading recent activity...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+                  <thead className="bg-white/[0.03] text-slate-400">
+                    <tr>
+                      <th className="px-6 py-4 font-semibold">Activity</th>
+                      <th className="px-6 py-4 font-semibold">Type</th>
+                      <th className="px-6 py-4 font-semibold">Status</th>
+                      <th className="px-6 py-4 font-semibold">Time</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {(dashboardData?.recentActivity || []).map((activity) => (
+                      <tr key={activity.id} className="text-slate-300">
+                        <td className="px-6 py-4 font-medium text-white">{activity.input}</td>
+                        <td className="px-6 py-4">{activity.type === 'url' ? 'URL Scan' : 'Password Check'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(activity.riskScore)}`}>
+                            {activity.threatLevel}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">{formatDateTime(activity.createdAt)}</td>
+                      </tr>
+                    ))}
+                    {!dashboardData?.recentActivity?.length ? (
+                      <tr>
+                        <td className="px-6 py-6 text-sm text-slate-400" colSpan={4}>
+                          No scan history yet. Complete a URL scan or password check to populate this dashboard.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>

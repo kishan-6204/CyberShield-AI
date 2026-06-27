@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import useAuth from '../hooks/useAuth.js';
+import { saveScanHistory } from '../services/firestoreService.js';
 import { analyzePassword } from '../utils/passwordAnalyzer.js';
 
 const checklistItems = [
@@ -14,6 +16,9 @@ const checklistItems = [
 function PasswordChecker() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const { currentUser } = useAuth();
   const analysis = useMemo(() => analyzePassword(password), [password]);
 
   const checklistState = {
@@ -49,7 +54,44 @@ function PasswordChecker() {
             <button type="button" className="secondary-button" onClick={() => setShowPassword((current) => !current)}>
               {showPassword ? 'Hide' : 'Show'} password
             </button>
+            <button
+              type="button"
+              className="primary-button sm:flex-none"
+              onClick={async () => {
+                if (!password.trim() || !currentUser?.uid) {
+                  return;
+                }
+
+                setSaving(true);
+                setMessage('');
+
+                try {
+                  await saveScanHistory(currentUser.uid, {
+                    type: 'password',
+                    input: password,
+                    riskScore: 100 - analysis.score,
+                    threatLevel:
+                      analysis.strength.label === 'Strong'
+                        ? 'Safe'
+                        : analysis.strength.label === 'Good'
+                          ? 'Low Risk'
+                          : analysis.strength.label === 'Fair'
+                            ? 'Medium Risk'
+                            : 'High Risk',
+                  });
+                  setMessage('Password check saved to your dashboard history.');
+                } catch {
+                  setMessage('Password check completed, but saving to Firestore failed.');
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? 'Saving...' : 'Save Check'}
+            </button>
           </div>
+
+          {message ? <p className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.05] px-4 py-3 text-sm text-cyan-100">{message}</p> : null}
 
           <div className="mt-8 rounded-2xl border border-white/10 bg-slate-950/60 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
