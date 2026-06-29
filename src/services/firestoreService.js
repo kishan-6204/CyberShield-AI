@@ -47,10 +47,17 @@ function convertTimestamp(value) {
 
 function mapScanDocument(snapshot) {
   const data = snapshot.data();
+  const virusTotal = data.virusTotal && typeof data.virusTotal === 'object'
+    ? {
+        ...data.virusTotal,
+        lastAnalysis: convertTimestamp(data.virusTotal.lastAnalysis),
+      }
+    : null;
 
   return {
     id: snapshot.id,
     ...data,
+    virusTotal,
     createdAt: convertTimestamp(data.createdAt || data.timestamp),
   };
 }
@@ -126,6 +133,17 @@ export async function saveScanHistory(userId, scan) {
     documentData.summary = scan.summary.trim();
   }
 
+  if (scan?.virusTotal && typeof scan.virusTotal === 'object') {
+    documentData.virusTotal = {
+      malicious: Number(scan.virusTotal.malicious || 0),
+      suspicious: Number(scan.virusTotal.suspicious || 0),
+      harmless: Number(scan.virusTotal.harmless || 0),
+      undetected: Number(scan.virusTotal.undetected || 0),
+      reputation: Number.isFinite(Number(scan.virusTotal.reputation)) ? Number(scan.virusTotal.reputation) : null,
+      lastAnalysis: scan.virusTotal.lastAnalysis || null,
+    };
+  }
+
   return addDoc(collection(db, COLLECTIONS.scanHistory), {
     ...documentData,
   });
@@ -151,6 +169,13 @@ export async function getDashboardData(userId) {
   const totalUrlScans = history.filter((item) => item.type === 'url').length;
   const totalPasswordChecks = history.filter((item) => item.type === 'password').length;
   const totalEmailAnalyses = history.filter((item) => item.type === 'email').length;
+  const threatIntelligenceChecks = history.filter((item) => item.type === 'url' && item.virusTotal).length;
+  const reputationValues = history
+    .filter((item) => item.type === 'url' && Number.isFinite(Number(item.virusTotal?.reputation)))
+    .map((item) => Number(item.virusTotal.reputation));
+  const communityReputationAverage = reputationValues.length
+    ? Math.round(reputationValues.reduce((sum, value) => sum + value, 0) / reputationValues.length)
+    : 0;
   const averageRisk = history.length
     ? Math.round(
         history.reduce((sum, item) => {
@@ -172,6 +197,8 @@ export async function getDashboardData(userId) {
     totalUrlScans,
     totalPasswordChecks,
     totalEmailAnalyses,
+    threatIntelligenceChecks,
+    communityReputationAverage,
     securityScore,
     recentActivity: history.slice(0, 5),
   };
@@ -199,6 +226,13 @@ export function subscribeToDashboardData(userId, onChange, onError) {
       const totalUrlScans = history.filter((item) => item.type === 'url').length;
       const totalPasswordChecks = history.filter((item) => item.type === 'password').length;
       const totalEmailAnalyses = history.filter((item) => item.type === 'email').length;
+      const threatIntelligenceChecks = history.filter((item) => item.type === 'url' && item.virusTotal).length;
+      const reputationValues = history
+        .filter((item) => item.type === 'url' && Number.isFinite(Number(item.virusTotal?.reputation)))
+        .map((item) => Number(item.virusTotal.reputation));
+      const communityReputationAverage = reputationValues.length
+        ? Math.round(reputationValues.reduce((sum, value) => sum + value, 0) / reputationValues.length)
+        : 0;
       const averageRisk = history.length
         ? Math.round(
             history.reduce((sum, item) => {
@@ -220,6 +254,8 @@ export function subscribeToDashboardData(userId, onChange, onError) {
         totalUrlScans,
         totalPasswordChecks,
         totalEmailAnalyses,
+        threatIntelligenceChecks,
+        communityReputationAverage,
         securityScore,
         recentActivity: history.slice(0, 5),
       });

@@ -6,6 +6,7 @@ import EmailAnalyzer from '../pages/EmailAnalyzer.jsx';
 import Home from '../pages/Home.jsx';
 import Login from '../pages/Login.jsx';
 import NotFound from '../pages/NotFound.jsx';
+import Reports from '../pages/Reports.jsx';
 import PasswordChecker from '../pages/PasswordChecker.jsx';
 import Register from '../pages/Register.jsx';
 import UrlScanner from '../pages/UrlScanner.jsx';
@@ -32,6 +33,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <Reports />
             </ProtectedRoute>
           }
         />

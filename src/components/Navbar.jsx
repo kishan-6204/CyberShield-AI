@@ -11,6 +11,7 @@ const protectedLinks = [
   { label: 'Email Analyzer', path: '/email-analyzer' },
   { label: 'URL Scanner', path: '/url-scanner' },
   { label: 'Password Checker', path: '/password-checker' },
+  { label: 'Reports', path: '/reports' },
 ];
 
 const guestLinks = [

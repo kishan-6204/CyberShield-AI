@@ -1,6 +1,7 @@
 import RiskMeter from './RiskMeter.jsx';
 import ThreatBadge from './ThreatBadge.jsx';
 import RecommendationCard from './RecommendationCard.jsx';
+import VirusTotalCard from '../VirusTotalCard.jsx';
 
 function ScanResult({ result }) {
   if (!result) {
@@ -51,6 +52,12 @@ function ScanResult({ result }) {
           </ul>
         </div>
       </div>
+
+      {result.virusTotal ? (
+        <div className="mt-6">
+          <VirusTotalCard virusTotal={result.virusTotal} />
+        </div>
+      ) : null}
     </aside>
   );
 }

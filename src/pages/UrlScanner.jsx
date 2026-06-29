@@ -1,23 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import ScanResult from '../components/urlScanner/ScanResult.jsx';
 import useAuth from '../hooks/useAuth.js';
 import { saveScanHistory } from '../services/firestoreService.js';
-import { analyzeUrl, normalizeUrl } from '../utils/urlAnalyzer.js';
+import { analyzeUrlWithVirusTotal } from '../services/virusTotalService.js';
+import { normalizeUrl } from '../utils/urlAnalyzer.js';
 
 function UrlScanner() {
   const [urlInput, setUrlInput] = useState('');
-  const [submittedUrl, setSubmittedUrl] = useState('');
+  const [analysis, setAnalysis] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const { currentUser } = useAuth();
 
-  const analysis = useMemo(() => analyzeUrl(submittedUrl), [submittedUrl]);
-
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmittedUrl(urlInput);
-
-    if (!urlInput.trim() || !currentUser?.uid) {
+    if (!urlInput.trim()) {
       return;
     }
 
@@ -25,15 +22,33 @@ function UrlScanner() {
     setMessage('');
 
     try {
-      const result = analyzeUrl(urlInput);
-      await saveScanHistory(currentUser.uid, {
+      const result = await analyzeUrlWithVirusTotal(urlInput);
+      setAnalysis(result);
+
+      const successMessage = result.virusTotal?.message || 'URL scan completed.';
+
+      if (currentUser?.uid) {
+        await saveScanHistory(currentUser.uid, {
         type: 'url',
         input: urlInput,
         riskScore: result.riskScore,
         threatLevel: result.threatLevel,
-      });
+          virusTotal: result.virusTotal
+            ? {
+                malicious: result.virusTotal.stats?.malicious ?? 0,
+                suspicious: result.virusTotal.stats?.suspicious ?? 0,
+                harmless: result.virusTotal.stats?.harmless ?? 0,
+                undetected: result.virusTotal.stats?.undetected ?? 0,
+                reputation: result.virusTotal.reputation,
+                lastAnalysis: result.virusTotal.lastAnalysis,
+              }
+            : null,
+        });
 
-      setMessage('URL scan saved to your dashboard history.');
+        setMessage(`${successMessage} Saved to your dashboard history.`);
+      } else {
+        setMessage(successMessage);
+      }
     } catch {
       setMessage('Scan completed, but saving to Firestore failed.');
     } finally {
@@ -58,7 +73,7 @@ function UrlScanner() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">URL input</p>
           <h2 className="mt-3 text-2xl font-bold text-white">Analyze a destination link</h2>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Missing protocols are normalized automatically. Use the scanner to inspect deceptive domains, shortening services, and suspicious patterns.
+            Missing protocols are normalized automatically. The scanner combines heuristic URL checks with VirusTotal when available, then falls back gracefully if the API is unavailable.
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -80,7 +95,15 @@ function UrlScanner() {
               <button type="submit" className="primary-button sm:flex-1">
                 {saving ? 'Saving...' : 'Analyze URL'}
               </button>
-              <button type="button" className="secondary-button" onClick={() => setUrlInput('')}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setUrlInput('');
+                  setAnalysis(null);
+                  setMessage('');
+                }}
+              >
                 Clear
               </button>
             </div>
@@ -94,7 +117,7 @@ function UrlScanner() {
           </div>
 
           <div className="mt-6 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-5 text-sm leading-6 text-cyan-50">
-            The scanner evaluates HTTPS usage, IP-based destinations, excessive length, suspicious keywords, hyphen density, digits, subdomains, and shortening services.
+            The scanner evaluates HTTPS usage, IP-based destinations, excessive length, suspicious keywords, hyphen density, digits, subdomains, shortening services, and threat intelligence from VirusTotal.
           </div>
         </div>
 
